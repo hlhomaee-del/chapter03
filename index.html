@@ -177,13 +177,35 @@ footer { text-align:center; color:var(--muted); padding:30px; }
 .simNav { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px; }
 .simChosen { border-color:rgba(35,58,115,.45) !important; background:#eef6ff !important; box-shadow:0 0 0 4px rgba(35,58,115,.10) !important; }
 
+#printPacket { display:none; }
+.printCover, .printSection, .printQuestion, .printFlashcard {
+  background:#fff; border:1px solid #cfd4df; border-radius:16px; padding:18px; margin:0 0 14px;
+}
+.printCover h1 { font-size:2rem; margin-bottom:8px; }
+.printSection h2 { margin:.2rem 0 1rem; }
+.printFlashcard h3, .printQuestion h3 { margin:.1rem 0 .6rem; }
+.printMeta { color:#4f5a70; font-size:.9rem; font-weight:750; margin-bottom:8px; }
+.printAnswer { background:#eefaf3; border:1px solid #bde9ce; border-radius:12px; padding:10px 12px; margin:10px 0; }
+.printChoices { margin:.4rem 0 .8rem 1.1rem; padding:0; }
+.printChoices li { margin:.25rem 0; }
+.printRationale { margin:.35rem 0; line-height:1.45; }
+.printRationale.correctPrint { font-weight:800; }
+.printGrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
 @media print {
+  @page { margin:0.55in; }
   header, nav, .noPrint, footer { display:none !important; }
-  body { background:#fff; }
-  main { margin:0; padding:0; max-width:none; }
+  body { background:#fff !important; color:#111827; }
+  main { margin:0 !important; padding:0 !important; max-width:none !important; }
   .panel { display:none !important; }
-  #report { display:block !important; }
-  .reportCard { box-shadow:none; border:1px solid #bbb; break-inside:avoid; margin-bottom:12px; }
+  #printPacket { display:block !important; }
+  .printCover, .printSection, .printQuestion, .printFlashcard {
+    box-shadow:none !important; border:1px solid #c7ccd7 !important; border-radius:10px !important; break-inside:avoid; page-break-inside:avoid;
+  }
+  .printCover { page-break-after:always; }
+  .printSection { page-break-before:always; }
+  .printGrid { display:block !important; }
+  .printQuestion, .printFlashcard { margin-bottom:12px !important; }
 }
 </style>
 </head>
@@ -195,7 +217,7 @@ footer { text-align:center; color:var(--muted); padding:30px; }
       <p class="subtitle">Study the concepts, answer connected questions, track reading and reasoning time, then build an adaptive challenge set from the items that need more work.</p>
     </div>
     <div class="actions">
-      <button class="primary" onclick="window.print()">Print / Save PDF</button>
+      <button class="primary" onclick="printStudyPacket()">Print / Save PDF</button>
       <button onclick="resetAll()">Reset Data</button>
     </div>
   </div>
@@ -270,10 +292,13 @@ footer { text-align:center; color:var(--muted); padding:30px; }
         <h2>Student report</h2>
         <p class="small">This section prints cleanly. Use the top button to save as PDF.</p>
       </div>
-      <button class="primary" onclick="window.print()">Print / Save PDF</button>
+      <button class="primary" onclick="printStudyPacket()">Print / Save PDF</button>
     </div>
     <div id="reportArea"></div>
   </section>
+
+  <section id="printPacket" aria-label="Printable study packet"></section>
+
 </main>
 
 <footer>Built as a single-file HTML platform for GitHub Pages. No external libraries required.</footer>
@@ -746,6 +771,72 @@ function renderReport() {
     <p class="small"><b>Report design:</b> This report summarizes performance patterns and target concepts. It does not print every answer, because rationales are already available inside practice, adaptive challenge, and simulation review.</p>
   </div>`;
 }
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderPrintPacket() {
+  const now = new Date().toLocaleString();
+  const flashcardsHTML = DATA.concepts.map((c, index) => {
+    return `<article class="printFlashcard">
+      <div class="printMeta">Flashcard ${index + 1} • ${escapeHTML(c.category)}</div>
+      <h3>${escapeHTML(c.title)}</h3>
+      <p><b>Front:</b> ${escapeHTML(c.front)}</p>
+      <p><b>Back:</b> ${escapeHTML(c.back)}</p>
+      <p><b>Concept check:</b> ${escapeHTML(c.check)}</p>
+      <p class="printAnswer"><b>Correct answer:</b> ${escapeHTML(c.checkAnswer)}</p>
+    </article>`;
+  }).join('');
+
+  const questionsHTML = DATA.questions.map((q, index) => {
+    const concept = DATA.concepts.find(c => c.id === q.concept);
+    const choicesHTML = q.choices.map((choice, i) => {
+      const letter = String.fromCharCode(65 + i);
+      const isCorrect = choice === q.answer;
+      return `<li><b>${letter}.</b> ${escapeHTML(choice)}${isCorrect ? ' <b>(Correct)</b>' : ''}</li>`;
+    }).join('');
+    const rationalesHTML = q.choices.map((choice, i) => {
+      const letter = String.fromCharCode(65 + i);
+      const isCorrect = choice === q.answer;
+      const rationale = q.rationales && q.rationales[choice] ? q.rationales[choice] : '';
+      return `<p class="printRationale ${isCorrect ? 'correctPrint' : ''}"><b>${letter}. ${escapeHTML(choice)}:</b> ${escapeHTML(rationale)}</p>`;
+    }).join('');
+    return `<article class="printQuestion">
+      <div class="printMeta">Question ${index + 1} • ${escapeHTML(q.id)}${concept ? ' • ' + escapeHTML(concept.title) : ''}</div>
+      <h3>${escapeHTML(q.question)}</h3>
+      <ol class="printChoices" type="A">${choicesHTML}</ol>
+      <div class="printAnswer"><b>Correct answer:</b> ${escapeHTML(q.answer)}</div>
+      <div><b>Rationales:</b>${rationalesHTML}</div>
+    </article>`;
+  }).join('');
+
+  document.getElementById('printPacket').innerHTML = `
+    <div class="printCover">
+      <h1>CBCS Revenue Management Study Packet</h1>
+      <p><b>Printed:</b> ${escapeHTML(now)}</p>
+      <p><b>Includes:</b> ${DATA.concepts.length} flashcards and ${DATA.questions.length} practice questions with correct answers and rationales.</p>
+      <p>This PDF packet is designed for teacher review, student study, and answer-key documentation.</p>
+    </div>
+    <div class="printSection">
+      <h2>Flashcards</h2>
+      <div class="printGrid">${flashcardsHTML}</div>
+    </div>
+    <div class="printSection">
+      <h2>Question Bank Answer Key</h2>
+      ${questionsHTML}
+    </div>`;
+}
+
+function printStudyPacket() {
+  renderPrintPacket();
+  window.print();
+}
+
 function resetAll() {
   if(confirm('Clear all local practice data and reflection?')) {
     localStorage.removeItem('cbcsStats'); localStorage.removeItem('cbcsReflection');
@@ -758,6 +849,7 @@ renderFlashcards();
 startPractice();
 renderChallengeStats();
 renderReport();
+renderPrintPacket();
 </script>
 </body>
 </html>
