@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CBCS Revenue Management Interactive Platform</title>
+<style>
+:root {
+  --ink:#182033; --muted:#5b6478; --paper:#fffaf3; --card:#ffffff;
+  --line:rgba(24,32,51,.13); --shadow:0 18px 55px rgba(36,28,12,.14);
+  --good:#177245; --bad:#a83246; --navy:#182033;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; color:var(--ink);
+  font-family: "Aptos", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255,190,137,.42), transparent 32%),
+    radial-gradient(circle at 92% 18%, rgba(167,213,255,.40), transparent 30%),
+    radial-gradient(circle at 15% 88%, rgba(202,178,255,.36), transparent 30%),
+    linear-gradient(135deg,#fff7ea,#eef7ff 48%,#fff0f5);
+  min-height:100vh;
+}
+header {
+  padding:28px clamp(18px,4vw,54px) 20px; position:sticky; top:0; z-index:20;
+  backdrop-filter: blur(16px); background:rgba(255,250,243,.78); border-bottom:1px solid var(--line);
+}
+.hero { display:grid; grid-template-columns:1.4fr .6fr; gap:18px; align-items:center; max-width:1240px; margin:auto; }
+h1 { margin:0; font-size:clamp(1.7rem,3vw,3.1rem); letter-spacing:-.045em; line-height:1.02; }
+.subtitle { margin:.65rem 0 0; color:var(--muted); font-size:1.02rem; max-width:880px; line-height:1.55; }
+.actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+button, .tab {
+  border:0; border-radius:999px; padding:11px 15px; font-weight:750; cursor:pointer;
+  background:#fff; color:var(--ink); box-shadow:0 8px 25px rgba(24,32,51,.10);
+  transition:.18s ease transform,.18s ease box-shadow,.18s ease background;
+}
+button:hover,.tab:hover { transform:translateY(-1px); box-shadow:0 12px 28px rgba(24,32,51,.15); }
+button.primary { background:linear-gradient(135deg,#243b73,#6d5dfc); color:#fff; }
+button.good { background:#e9fff3; color:#116b3f; }
+button.bad { background:#fff0f2; color:#9a2436; }
+button:disabled { opacity:.48; cursor:not-allowed; transform:none; }
+nav { max-width:1240px; margin:18px auto 0; display:flex; gap:10px; flex-wrap:wrap; }
+.tab.active { background:#182033; color:white; }
+main { max-width:1240px; margin:28px auto 90px; padding:0 clamp(18px,4vw,54px); }
+.panel { display:none; }
+.panel.active { display:block; animation:rise .25s ease both; }
+@keyframes rise { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:none} }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:18px; }
+#flashGrid {
+  max-height:calc(100vh - 245px);
+  overflow-y:auto;
+  padding:4px 10px 26px 2px;
+  scroll-behavior:smooth;
+}
+.flashcard {
+  height:540px; min-height:540px; perspective:1100px; cursor:pointer;
+}
+.flash-inner { position:relative; width:100%; height:100%; min-height:540px; transition:transform .6s; transform-style:preserve-3d; }
+.flashcard.flipped .flash-inner { transform:rotateY(180deg); }
+.face {
+  position:absolute; inset:0; padding:22px; border-radius:28px; backface-visibility:hidden;
+  box-shadow:var(--shadow); border:1px solid rgba(255,255,255,.68); overflow-y:auto; overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+#flashGrid::-webkit-scrollbar, .face::-webkit-scrollbar { width:10px; }
+#flashGrid::-webkit-scrollbar-track, .face::-webkit-scrollbar-track { background:rgba(255,255,255,.38); border-radius:999px; }
+#flashGrid::-webkit-scrollbar-thumb, .face::-webkit-scrollbar-thumb { background:rgba(24,32,51,.24); border-radius:999px; }
+@media (max-width:700px) {
+  #flashGrid { max-height:none; overflow:visible; }
+  .flashcard { height:620px; min-height:620px; }
+  .flash-inner { min-height:620px; }
+}
+.face::before {
+  content:""; position:absolute; inset:-80px -70px auto auto; width:210px; height:210px; border-radius:50%;
+  background:rgba(255,255,255,.36);
+}
+.back { transform:rotateY(180deg); background:#fff; }
+.badge { display:inline-flex; padding:7px 10px; border-radius:999px; font-size:.78rem; font-weight:850; background:rgba(255,255,255,.60); }
+.face h3 { font-size:1.25rem; margin:14px 0 10px; letter-spacing:-.02em; }
+.face p { line-height:1.55; font-size:.98rem; position:relative; }
+.highlight { background:linear-gradient(transparent 58%, rgba(255,255,255,.72) 58%); padding:0 3px; border-radius:4px; font-weight:850; }
+.checkbox { margin-top:18px; background:rgba(255,255,255,.65); border:1px solid rgba(255,255,255,.8); padding:14px; border-radius:20px; }
+.check-options { display:grid; gap:8px; margin-top:10px; }
+.check-options button { text-align:left; border-radius:16px; padding:10px 12px; background:rgba(255,255,255,.85); box-shadow:none; }
+.card, .questionBox, .reportCard {
+  background:rgba(255,255,255,.86); border:1px solid var(--line); border-radius:30px; box-shadow:var(--shadow); padding:24px;
+}
+.toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:16px; }
+select, input, textarea {
+  border:1px solid var(--line); border-radius:16px; padding:11px 12px; background:#fff; font:inherit; color:var(--ink);
+}
+.progressOuter { height:12px; background:rgba(24,32,51,.08); border-radius:999px; overflow:hidden; margin:14px 0 0; }
+.progressInner { height:100%; width:0%; background:linear-gradient(90deg,#60d394,#7dc4ff,#c5a3ff); transition:.25s ease; }
+.meta { display:flex; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:.9rem; margin:8px 0 18px; }
+.pill { display:inline-flex; gap:6px; align-items:center; padding:7px 10px; border-radius:999px; background:rgba(24,32,51,.06); font-weight:750; }
+.questionText { font-size:1.22rem; line-height:1.55; margin:8px 0 18px; }
+.options { display:grid; gap:10px; }
+.option {
+  width:100%; text-align:left; border-radius:18px; background:#fff; border:1px solid var(--line); box-shadow:none;
+  padding:14px 15px; font-weight:700;
+}
+.option.correct { border-color:rgba(23,114,69,.55); background:#edfff5; box-shadow:0 0 0 4px rgba(23,114,69,.10), 0 0 32px rgba(23,114,69,.16); }
+.option.wrong { border-color:rgba(168,50,70,.35); background:#fff1f3; }
+.rationale { margin-top:18px; display:none; border-radius:24px; padding:18px; background:#f8fbff; border:1px solid #dfe9ff; }
+.rationale.show { display:block; }
+.rationale h3 { margin:0 0 8px; }
+.ratLine { padding:10px 0; border-top:1px solid rgba(24,32,51,.08); line-height:1.45; }
+.studyLink { margin-top:14px; display:inline-flex; }
+.timerStrip { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin:14px 0; }
+.timerTile { background:#fff; border:1px solid var(--line); border-radius:18px; padding:12px; }
+.timerTile b { display:block; font-size:1.2rem; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:12px; margin:16px 0; }
+.stat { background:#fff; border:1px solid var(--line); border-radius:22px; padding:16px; }
+.stat b { font-size:1.8rem; display:block; }
+.simGrid { display:grid; gap:16px; }
+.simItem { padding:18px; border:1px solid var(--line); border-radius:24px; background:#fff; }
+.simItem h4 { margin:.2rem 0 .7rem; }
+.reflection { min-height:120px; width:100%; }
+.small { color:var(--muted); font-size:.92rem; line-height:1.45; }
+footer { text-align:center; color:var(--muted); padding:30px; }
+.feedbackGrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin:16px 0; }
+.feedbackBox { border-radius:24px; padding:16px; border:1px solid rgba(24,32,51,.10); box-shadow:0 12px 30px rgba(24,32,51,.08); }
+.feedbackBox h3 { margin:.1rem 0 .45rem; font-size:1.05rem; }
+.feedbackBox p { margin:.2rem 0; line-height:1.45; }
+.feedbackStrong { background:linear-gradient(135deg,#eafff2,#f5fff9); }
+.feedbackBalanced { background:linear-gradient(135deg,#edf6ff,#fbfdff); }
+.feedbackWatch { background:linear-gradient(135deg,#fff7df,#fffdf5); }
+.feedbackUrgent { background:linear-gradient(135deg,#fff0f3,#fffafa); }
+.trainingNote { background:linear-gradient(135deg,#fff,#eef6ff 55%,#fff4fb); border:1px solid rgba(24,32,51,.10); border-radius:28px; padding:20px; box-shadow:var(--shadow); margin-bottom:18px; }
+.trainingNote h3 { margin:.1rem 0 .5rem; }
+.trainingNote b { color:#233a73; }
+
+
+/* Rebuilt flashcard layout: all cards remain visible, each card can scroll internally. */
+#flashGrid {
+  max-height:none !important;
+  overflow:visible !important;
+  align-items:start !important;
+  padding-bottom:40px !important;
+}
+.flashcard {
+  height:auto !important;
+  min-height:0 !important;
+  perspective:none !important;
+  cursor:pointer;
+}
+.flash-inner {
+  position:relative !important;
+  height:auto !important;
+  min-height:0 !important;
+  transform:none !important;
+  transition:none !important;
+  transform-style:flat !important;
+}
+.flashcard.flipped .flash-inner { transform:none !important; }
+.face {
+  position:relative !important;
+  inset:auto !important;
+  min-height:430px !important;
+  max-height:620px !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  backface-visibility:visible !important;
+}
+.back {
+  transform:none !important;
+  display:none !important;
+  min-height:430px !important;
+}
+.flashcard.flipped .face:not(.back) { display:none !important; }
+.flashcard.flipped .back { display:block !important; }
+.flashHint { margin-top:12px; font-weight:800; opacity:.82; }
+.modeExplain { background:linear-gradient(135deg,#fffdf8,#eef7ff 60%,#fff4fa); border:1px solid rgba(24,32,51,.10); border-radius:22px; padding:14px 16px; margin:12px 0 18px; line-height:1.5; }
+.reportFocusList { display:grid; gap:10px; margin-top:12px; }
+.reportFocusItem { background:#fff; border:1px solid rgba(24,32,51,.10); border-radius:18px; padding:13px 14px; }
+.simNav { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+.simChosen { border-color:rgba(35,58,115,.45) !important; background:#eef6ff !important; box-shadow:0 0 0 4px rgba(35,58,115,.10) !important; }
+
+@media print {
+  header, nav, .noPrint, footer { display:none !important; }
+  body { background:#fff; }
+  main { margin:0; padding:0; max-width:none; }
+  .panel { display:none !important; }
+  #report { display:block !important; }
+  .reportCard { box-shadow:none; border:1px solid #bbb; break-inside:avoid; margin-bottom:12px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hero">
+    <div>
+      <h1>CBCS Revenue Management Interactive Platform</h1>
+      <p class="subtitle">Study the concepts, answer connected questions, track reading and reasoning time, then build an adaptive challenge set from the items that need more work.</p>
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="window.print()">Print / Save PDF</button>
+      <button onclick="resetAll()">Reset Data</button>
+    </div>
+  </div>
+  <nav>
+    <button class="tab active" data-panel="learn">1. Flashcards</button>
+    <button class="tab" data-panel="practice">2. Practice + Rationales</button>
+    <button class="tab" data-panel="challenge">3. Adaptive Challenge</button>
+    <button class="tab" data-panel="simulation">4. Simulation Test</button>
+    <button class="tab" data-panel="report">5. Report / Reflection</button>
+  </nav>
+</header>
+
+<main>
+  <section id="learn" class="panel active">
+    <div class="toolbar">
+      <div>
+        <h2>Color-coded concept cards</h2>
+        <p class="small">Click a card to flip it. Answer the concept check at the bottom before moving on.</p>
+      </div>
+      <select id="conceptFilter" onchange="renderFlashcards()"></select>
+    </div>
+    <div id="flashGrid" class="grid"></div>
+  </section>
+
+  <section id="practice" class="panel">
+    <div class="toolbar">
+      <div>
+        <h2>Practice questions with full rationales</h2>
+        <p class="small">Practice mode trains students to slow down just enough to understand the question stem before moving to answer choices. This is where the reading timer appears.</p>
+      </div>
+      <div>
+        <select id="practiceFilter" onchange="startPractice()"></select>
+        <button class="primary" onclick="startPractice()">Restart Practice</button>
+      </div>
+    </div>
+    <div class="trainingNote">
+      <h3>Why this practice works</h3>
+      <p><b>The goal is not to read slowly forever.</b> The goal is to notice whether you are actually reading the question stem or jumping straight to the answer choices. Many students lose points because they answer the topic they recognize, not the exact question being asked.</p>
+      <p>In this practice section, students first read the stem, then click to reveal answer choices. The platform records question-reading time, answer-decision time, and rationale-reading time. In the adaptive challenge and simulation test, all answer options appear immediately, just like a real test. Practice builds the habit; challenge and simulation test the habit.</p>
+    </div>
+    <div class="questionBox">
+      <div class="progressOuter"><div id="practiceProgress" class="progressInner"></div></div>
+      <div id="practiceArea"></div>
+    </div>
+  </section>
+
+  <section id="challenge" class="panel">
+    <div class="card">
+      <h2>Adaptive challenge</h2>
+      <p class="small">This mode selects weaker items first: missed questions, slow answer decisions, or questions with no practice history. Answer choices appear immediately. The rationale appears only after each item is submitted.</p>
+      <div class="stats" id="challengeStats"></div>
+      <button class="primary" onclick="startChallenge()">Build My Challenge Set</button>
+    </div>
+    <div class="questionBox" style="margin-top:18px">
+      <div class="progressOuter"><div id="challengeProgress" class="progressInner"></div></div>
+      <div id="challengeArea"></div>
+    </div>
+  </section>
+
+  <section id="simulation" class="panel">
+    <div class="card">
+      <h2>Simulation test</h2>
+      <p class="small">A test-style mode: no instant rationale. Submit all answers, then receive score, rationales, and a reflection prompt.</p>
+      <button class="primary" onclick="startSimulation()">Generate 20-question Simulation</button>
+    </div>
+    <div id="simulationArea" class="simGrid" style="margin-top:18px"></div>
+  </section>
+
+  <section id="report" class="panel">
+    <div class="toolbar noPrint">
+      <div>
+        <h2>Student report</h2>
+        <p class="small">This section prints cleanly. Use the top button to save as PDF.</p>
+      </div>
+      <button class="primary" onclick="window.print()">Print / Save PDF</button>
+    </div>
+    <div id="reportArea"></div>
+  </section>
+</main>
+
+<footer>Built as a single-file HTML platform for GitHub Pages. No external libraries required.</footer>
+
+<script>
+const DATA = {"concepts": [{"id": "assignment", "title": "Accept Assignment vs Assignment of Benefits", "category": "Insurance Contract Language", "front": "Accept assignment means the provider agrees to accept the payer's allowed amount as payment in full.", "back": "Assignment of benefits is different: the patient authorizes the payer to send payment to the provider. Do not confuse 'who accepts the allowed amount' with 'who receives payment.'", "check": "A provider agrees not to bill above the payer's allowed amount. Which concept is this?", "checkChoices": ["Accept assignment", "Assignment of benefits", "Coordination of benefits", "Premium"], "checkAnswer": "Accept assignment"}, {"id": "patientresp", "title": "Patient Responsibility Terms", "category": "Insurance Basics", "front": "Premium = regular cost to keep insurance. Deductible = amount paid before the plan begins paying many services. Copayment = fixed visit amount. Coinsurance = percentage after deductible.", "back": "Out-of-pocket limit is the yearly maximum for covered patient cost-sharing. After that point, the plan usually pays more/all covered costs according to plan rules.", "check": "A patient pays 20% of the allowed amount after the deductible is met. Which term is this?", "checkChoices": ["Coinsurance", "Copayment", "Premium", "Write-off"], "checkAnswer": "Coinsurance"}, {"id": "par", "title": "PAR vs nonPAR Providers", "category": "Provider Status", "front": "PAR providers have a payer contract and usually cannot balance bill the difference between their usual fee and the allowed amount.", "back": "NonPAR providers are out of network. Patients often pay more and may owe the difference between insurance payment and provider fee, depending on payer rules.", "check": "A PAR provider charges $120 and the allowed amount is $100. What is the write-off?", "checkChoices": ["$20", "$0", "$100", "$120"], "checkAnswer": "$20"}, {"id": "cob", "title": "Coordination of Benefits / Birthday Rule", "category": "Multiple Insurance", "front": "Coordination of benefits decides which insurance pays first, second, and possibly third.", "back": "For dependent children with two parent policies, the birthday rule usually makes the plan of the parent whose month/day occurs earlier in the calendar year primary. Year does not decide unless special rules apply.", "check": "Mother's birthday is March 6; father's is March 20. Which policy is primary for the child?", "checkChoices": ["Mother's policy", "Father's policy", "Whichever parent is older", "The policy with the higher premium"], "checkAnswer": "Mother's policy"}, {"id": "source", "title": "Source Documents", "category": "Claim Source Documents", "front": "Encounter form/superbill captures treated diagnoses and services during the current physician-office visit.", "back": "Chargemaster/charge description master is facility-based and lists hospital outpatient services, supplies, procedures, and charges.", "check": "Which source document is commonly used in a physician office to capture diagnoses and services for the current visit?", "checkChoices": ["Superbill", "Remittance advice", "EOB", "Patient ledger"], "checkAnswer": "Superbill"}, {"id": "ledger", "title": "Financial Records", "category": "Practice Accounting", "front": "Patient ledger = manual permanent record of transactions. Patient account record = computerized permanent record.", "back": "Day sheet is a chronological daily summary of transactions posted to patient ledgers/accounts.", "check": "A chronological daily summary of posted transactions is the:", "checkChoices": ["Day sheet", "CMS-1500", "Premium ledger", "Data warehouse"], "checkAnswer": "Day sheet"}, {"id": "rcm", "title": "Revenue Cycle Management", "category": "Revenue Management", "front": "Revenue cycle management protects financial viability by improving reimbursement, cash flow, and patient experience.", "back": "Revenue cycle monitoring checks performance; auditing follows up to identify poor performance and correct it.", "check": "Which follow-up process identifies and corrects weak revenue-cycle performance?", "checkChoices": ["Revenue cycle auditing", "Preadmission certification", "Birthday rule", "Assignment of benefits"], "checkAnswer": "Revenue cycle auditing"}, {"id": "charge", "title": "Charge Capture & Chargemaster", "category": "Facility Billing", "front": "Charge capturing means all charges for services performed during an encounter are captured.", "back": "Chargemaster maintenance updates key elements so reimbursement and compliance remain accurate.", "check": "Updating and revising a chargemaster to support accurate reimbursement is:", "checkChoices": ["Chargemaster maintenance", "Resource allocation", "Data mining", "Case management"], "checkAnswer": "Chargemaster maintenance"}, {"id": "data", "title": "Data Analytics, Warehouses, Mining", "category": "Data & Performance", "front": "Data analytics evaluates clinical and financial data. Data warehouses consolidate databases for reporting. Data mining extracts/analyzes data to find patterns.", "back": "These are not the same as reimbursement itself. They help measure performance, patterns, and decisions.", "check": "Extracting and analyzing data to identify patterns is data:", "checkChoices": ["Mining", "Encryption", "Allocation", "Certification"], "checkAnswer": "Mining"}, {"id": "util", "title": "Utilization Management", "category": "Care Review", "front": "Utilization management controls cost and quality by reviewing appropriateness and necessity of care before or after services.", "back": "Concurrent review happens during inpatient hospitalization; preauthorization occurs before certain services; discharge planning arranges services after inpatient release.", "check": "Medical necessity review during an inpatient stay is:", "checkChoices": ["Concurrent review", "Discharge planning", "Coordination of benefits", "Day sheet"], "checkAnswer": "Concurrent review"}, {"id": "case", "title": "Case Management", "category": "Care Coordination", "front": "Case management coordinates care plans for complicated cases in a cost-effective manner.", "back": "It is patient-care coordination with financial awareness, not the same as risk management or quality management.", "check": "Coordinating care for complicated cases in a cost-effective way is:", "checkChoices": ["Case management", "Risk management", "Accounts payable", "Patient ledger"], "checkAnswer": "Case management"}, {"id": "irc", "title": "Integrated Revenue Cycle", "category": "Big-Picture Revenue Logic", "front": "Integrated revenue cycle combines revenue cycle management with clinical, coding, and information management decisions.", "back": "The point is to connect documentation, coding, billing, reimbursement, and financial management instead of treating them as separate silos.", "check": "The purpose of integrated revenue cycle is to:", "checkChoices": ["Impact financial management", "Increase facility costs", "Reduce payer reimbursement", "Destabilize health care"], "checkAnswer": "Impact financial management"}], "questions": [{"id": "Q01", "source": "Uploaded Chapter 03 pool", "concept": "assignment", "question": "Which means the provider agrees to accept what the insurance company allows or approves as payment in full for the claim?", "choices": ["accept assignment", "assignment of benefits"], "answer": "accept assignment", "rationales": {"accept assignment": "Correct — Provider agrees to accept the payer's allowed amount as payment in full.", "assignment of benefits": "Not this one — Patient authorizes insurance payment to go directly to the provider. The question is asking for accept assignment, so this option does not fit the exact wording."}}, {"id": "Q02", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Health insurance plans may include a(n) __________ provision, which means that when the patient has reached that limit for the year, appropriate patient reimbursement to the provider is determined.", "choices": ["assignment of benefits", "coinsurance and copayment", "accept assignment", "out-of-pocket payment"], "answer": "out-of-pocket payment", "rationales": {"assignment of benefits": "Not this one — Patient authorizes insurance payment to go directly to the provider. The question is asking for out-of-pocket payment, so this option does not fit the exact wording.", "coinsurance and copayment": "Not this one — it sounds plausible, but the key phrase in the question points to out-of-pocket payment.", "accept assignment": "Not this one — Provider agrees to accept the payer's allowed amount as payment in full. The question is asking for out-of-pocket payment, so this option does not fit the exact wording.", "out-of-pocket payment": "Correct — Patient cost-sharing limit/amount paid personally under the plan."}}, {"id": "Q03", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Which person is responsible for paying the charges?", "choices": ["enrollee", "guarantor", "patient", "payer"], "answer": "guarantor", "rationales": {"enrollee": "Not this one — Person enrolled in the insurance plan; not always the person responsible for the bill. The question is asking for guarantor, so this option does not fit the exact wording.", "guarantor": "Correct — Person financially responsible for paying charges.", "patient": "Not this one — Person receiving care; not always the guarantor. The question is asking for guarantor, so this option does not fit the exact wording.", "payer": "Not this one — Insurance company or plan responsible for paying eligible claims. The question is asking for guarantor, so this option does not fit the exact wording."}}, {"id": "Q04", "source": "Uploaded Chapter 03 pool", "concept": "par", "question": "A participating provider (PAR) contracts with a health insurance plan and accepts whatever the plan pays for procedures or services performed. This means that PARs __________ allowed to bill patients for the difference between the contracted rate and their normal fee.", "choices": ["are", "are not"], "answer": "are not", "rationales": {"are": "Not this wording — the scenario rule points to 'are not', not 'are'. Read the payer/provider relationship carefully.", "are not": "Correct — this choice matches the concept tested by the wording of the question."}}, {"id": "Q05", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "A nonparticipating provider (nonPAR) is an out-of-network provider who does not contract with the insurance plan, and patients who elect to receive care from non-PARs will incur higher out-of-pocket expenses. The patient __________ expected to pay the difference between the insurance payment and the provider’s fee.", "choices": ["is not", "is usually"], "answer": "is usually", "rationales": {"is not": "Not this wording — the scenario rule points to 'is usually', not 'is not'. Read the payer/provider relationship carefully.", "is usually": "Correct — this choice matches the concept tested by the wording of the question."}}, {"id": "Q06", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Dr. Smith is a participating provider (PAR) for the ABC Health Insurance Plan. Mary Talley is treated by Dr. Smith in the office, for which a $100 fee is charged. Given the information in the table located below, calculate the PAR provider write-off amount. ​ PAR provider fee $100 PAR allowable charge $80 Patient copayment $20 Insurance payment $60 PAR provider write-off amount ______", "choices": ["$10", "$20", "$30", "$40"], "answer": "$20", "rationales": {"$10": "Not this amount — it does not match the required calculation. The correct result is $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$20": "Correct — write-off logic compares the provider's charge with the allowed/contracted amount when a write-off applies.", "$30": "Not this amount — it does not match the required calculation. The correct result is $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$40": "Not this amount — it does not match the required calculation. The correct result is $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q07", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Dr. Jones is a nonparticipating provider (nonPAR) for the ABC Health Insurance Plan. Anne Smith is treated by Dr. Jones in the office, for which a $100 fee is charged. Given the information in the table located below, calculate the nonPAR provider write-off amount. ​ nonPAR provider fee $100 nonPAR allowable charge $90 Patient copayment $18 Insurance payment $72 nonPAR provider write-off amount ____", "choices": ["$0", "$10", "$20", "$30"], "answer": "$0", "rationales": {"$0": "Correct — write-off logic compares the provider's charge with the allowed/contracted amount when a write-off applies.", "$10": "Not this amount — it does not match the required calculation. The correct result is $0; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$20": "Not this amount — it does not match the required calculation. The correct result is $0; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$30": "Not this amount — it does not match the required calculation. The correct result is $0; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q08", "source": "Uploaded Chapter 03 pool", "concept": "cob", "question": "Which is the insurance plan responsible for paying health care insurance claims first?", "choices": ["primary insurance", "secondary insurance", "supplemental insurance", "tertiary insurance"], "answer": "primary insurance", "rationales": {"primary insurance": "Correct — Insurance billed first.", "secondary insurance": "Not this one — Insurance billed after primary payment is processed. The question is asking for primary insurance, so this option does not fit the exact wording.", "supplemental insurance": "Not this one — Additional coverage that may help with costs not fully covered. The question is asking for primary insurance, so this option does not fit the exact wording.", "tertiary insurance": "Not this one — Third insurance payer after primary and secondary. The question is asking for primary insurance, so this option does not fit the exact wording."}}, {"id": "Q09", "source": "Uploaded Chapter 03 pool", "concept": "cob", "question": "Secondary insurance is the insurance plan that is billed after the primary insurance plan has paid its contracted amount and the provider ’ s office has received a(n) __________ from the primary payer.", "choices": ["CMS-1500 claim", "encounter form", "explanation of benefits", "remittance advice"], "answer": "remittance advice", "rationales": {"CMS-1500 claim": "Not this one — Professional claim form used to bill physician/provider services. The question is asking for remittance advice, so this option does not fit the exact wording.", "encounter form": "Not this one — Source document listing current visit diagnoses/services; used to generate a claim. The question is asking for remittance advice, so this option does not fit the exact wording.", "explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for remittance advice, so this option does not fit the exact wording.", "remittance advice": "Correct — Payment/adjudication document sent to the provider explaining payment decisions."}}, {"id": "Q10", "source": "Uploaded Chapter 03 pool", "concept": "cob", "question": "When a child lives with both parents, and each parent subscribes to a different health insurance plan, the primary and secondary policies are determined by applying the birthday rule . The individual who holds the primary policy for dependent children is the spouse whose birth __________.", "choices": ["day occurs earlier in the month", "month and day occur earlier in the calendar year", "month, day, and year occur earlier", "year occurs earlier"], "answer": "month and day occur earlier in the calendar year", "rationales": {"day occurs earlier in the month": "Not this one — it sounds plausible, but the key phrase in the question points to month and day occur earlier in the calendar year.", "month and day occur earlier in the calendar year": "Correct — this choice matches the concept tested by the wording of the question.", "month, day, and year occur earlier": "Not this one — it sounds plausible, but the key phrase in the question points to month and day occur earlier in the calendar year.", "year occurs earlier": "Not this one — it sounds plausible, but the key phrase in the question points to month and day occur earlier in the calendar year."}}, {"id": "Q11", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "When applying the birthday rule , if policyholders have identical birthdays, the policy in effect the __________ is considered primary.", "choices": ["longest", "shortest"], "answer": "longest", "rationales": {"longest": "Correct — this choice matches the concept tested by the wording of the question.", "shortest": "Not this wording — the scenario rule points to 'longest', not 'shortest'. Read the payer/provider relationship carefully."}}, {"id": "Q12", "source": "Uploaded Chapter 03 pool", "concept": "cob", "question": "A child is listed as a dependent on both their father’s and their mother’s group insurance policies. The father’s birth date is March 20, 1977, and the mother’s birth date is March 6, 1979. Which policy is primary?", "choices": ["father’s policy", "mother’s policy"], "answer": "mother’s policy", "rationales": {"father’s policy": "Not this one — it sounds plausible, but the key phrase in the question points to mother’s policy.", "mother’s policy": "Correct — this choice matches the concept tested by the wording of the question."}}, {"id": "Q13", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which is the financial record source document used by health care providers and other personnel to record treated diagnoses and services rendered to the patient during the current visit?", "choices": ["CMS-1500 claim", "encounter form", "explanation of benefits", "remittance advice"], "answer": "encounter form", "rationales": {"CMS-1500 claim": "Not this one — Professional claim form used to bill physician/provider services. The question is asking for encounter form, so this option does not fit the exact wording.", "encounter form": "Correct — Source document listing current visit diagnoses/services; used to generate a claim.", "explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for encounter form, so this option does not fit the exact wording.", "remittance advice": "Not this one — Payment/adjudication document sent to the provider explaining payment decisions. The question is asking for encounter form, so this option does not fit the exact wording."}}, {"id": "Q14", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which is the financial record source document used by health care providers and other personnel in a physician’s office setting to record treated diagnoses and services rendered to the patient during the current visit?", "choices": ["CMS-1500 claim", "explanation of benefits", "remittance advice", "superbill"], "answer": "superbill", "rationales": {"CMS-1500 claim": "Not this one — Professional claim form used to bill physician/provider services. The question is asking for superbill, so this option does not fit the exact wording.", "explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for superbill, so this option does not fit the exact wording.", "remittance advice": "Not this one — Payment/adjudication document sent to the provider explaining payment decisions. The question is asking for superbill, so this option does not fit the exact wording.", "superbill": "Correct — Office encounter form/source document for diagnoses and services."}}, {"id": "Q15", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which is the financial record source document used by health care providers and other personnel in a hospital outpatient setting to select codes for treated diagnoses and services rendered to the patient during the current visit?", "choices": ["chargemaster", "explanation of benefits", "remittance advice", "superbill"], "answer": "chargemaster", "rationales": {"chargemaster": "Correct — Facility list of procedures/services/supplies and charges.", "explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for chargemaster, so this option does not fit the exact wording.", "remittance advice": "Not this one — Payment/adjudication document sent to the provider explaining payment decisions. The question is asking for chargemaster, so this option does not fit the exact wording.", "superbill": "Not this one — Office encounter form/source document for diagnoses and services. The question is asking for chargemaster, so this option does not fit the exact wording."}}, {"id": "Q16", "source": "Uploaded Chapter 03 pool", "concept": "ledger", "question": "Which is a manual permanent record of all financial transactions between the patient and the practice?", "choices": ["health record", "insurance claim", "patient ledger", "remittance advice"], "answer": "patient ledger", "rationales": {"health record": "Not this one — it sounds plausible, but the key phrase in the question points to patient ledger.", "insurance claim": "Not this one — it sounds plausible, but the key phrase in the question points to patient ledger.", "patient ledger": "Correct — Manual permanent record of financial transactions.", "remittance advice": "Not this one — Payment/adjudication document sent to the provider explaining payment decisions. The question is asking for patient ledger, so this option does not fit the exact wording."}}, {"id": "Q17", "source": "Uploaded Chapter 03 pool", "concept": "ledger", "question": "Which is a computerized permanent record of all financial transactions between the patient and the practice?", "choices": ["health record", "patient account record", "patient ledger", "remittance advice"], "answer": "patient account record", "rationales": {"health record": "Not this one — it sounds plausible, but the key phrase in the question points to patient account record.", "patient account record": "Correct — Computerized permanent record of financial transactions.", "patient ledger": "Not this one — Manual permanent record of financial transactions. The question is asking for patient account record, so this option does not fit the exact wording.", "remittance advice": "Not this one — Payment/adjudication document sent to the provider explaining payment decisions. The question is asking for patient account record, so this option does not fit the exact wording."}}, {"id": "Q18", "source": "Uploaded Chapter 03 pool", "concept": "ledger", "question": "The manual daily accounts receivable journal is also known as the __________, and it is a chronologic summary of all transactions posted to individual patient ledgers/accounts on a specific date.", "choices": ["day sheet", "explanation of benefits", "patient ledger", "superbill"], "answer": "day sheet", "rationales": {"day sheet": "Correct — Chronological daily summary of transactions posted to accounts.", "explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for day sheet, so this option does not fit the exact wording.", "patient ledger": "Not this one — Manual permanent record of financial transactions. The question is asking for day sheet, so this option does not fit the exact wording.", "superbill": "Not this one — Office encounter form/source document for diagnoses and services. The question is asking for day sheet, so this option does not fit the exact wording."}}, {"id": "Q19", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "A policyholder or __________ is the person in whose name the insurance policy is issued.", "choices": ["beneficiary", "employee", "patient", "provider"], "answer": "beneficiary", "rationales": {"beneficiary": "Correct — Person eligible to receive benefits under a policy; in some textbook wording, policyholder/subscriber context.", "employee": "Not this one — Worker; may be policyholder in group insurance but not the general term here. The question is asking for beneficiary, so this option does not fit the exact wording.", "patient": "Not this one — Person receiving care; not always the guarantor. The question is asking for beneficiary, so this option does not fit the exact wording.", "provider": "Not this one — Clinician/facility delivering care. The question is asking for beneficiary, so this option does not fit the exact wording."}}, {"id": "Q20", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Which is the percentage the patient pays for covered services after the deductible has been met and the copayment has been paid?", "choices": ["coinsurance", "copayment", "deductible", "premium"], "answer": "coinsurance", "rationales": {"coinsurance": "Correct — Percentage the patient pays for covered services after deductible/copay rules.", "copayment": "Not this one — Fixed amount paid each time/visit according to plan rules. The question is asking for coinsurance, so this option does not fit the exact wording.", "deductible": "Not this one — Amount paid before the payer begins covering many services. The question is asking for coinsurance, so this option does not fit the exact wording.", "premium": "Not this one — Regular payment to keep insurance coverage active. The question is asking for coinsurance, so this option does not fit the exact wording."}}, {"id": "Q21", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "Which is the fixed amount the patient pays each time they receive health care services?", "choices": ["coinsurance", "copayment", "deductible", "premium"], "answer": "copayment", "rationales": {"coinsurance": "Not this one — Percentage the patient pays for covered services after deductible/copay rules. The question is asking for copayment, so this option does not fit the exact wording.", "copayment": "Correct — Fixed amount paid each time/visit according to plan rules.", "deductible": "Not this one — Amount paid before the payer begins covering many services. The question is asking for copayment, so this option does not fit the exact wording.", "premium": "Not this one — Regular payment to keep insurance coverage active. The question is asking for copayment, so this option does not fit the exact wording."}}, {"id": "Q22", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "Sally Simmons is a patient of Dr. Tyler’s. She received preventive services for her annual physical examination on May 17. The third-party payer determined the allowed charge for preventive services to be $100, for which the payer reimbursed the physician 80 percent of that amount. Sally is responsible for paying the remaining 20 percent directly to the physician. Thus, the physician will receive a check in the amount of __________ from the payer, and the patient will pay __________ to the physician.", "choices": ["$20; $80", "$50; $50", "$80; $20", "$100; $20"], "answer": "$80; $20", "rationales": {"$20; $80": "Not this amount — it does not match the required calculation. The correct result is $80; $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$50; $50": "Not this amount — it does not match the required calculation. The correct result is $80; $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$80; $20": "Correct — apply the payer percentage to the allowed charge, then the remaining percentage is the patient's responsibility.", "$100; $20": "Not this amount — it does not match the required calculation. The correct result is $80; $20; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q23", "source": "Uploaded Chapter 03 pool", "concept": "patientresp", "question": "The patient underwent office surgery on March 18, and the third-party payer determined the allowed charge to be $1,480. The patient paid the 20 percent coinsurance at the time of the office surgery. The physician and patient each received a check for $1,184, and the patient signed her check over to the physician. The overpayment was __________, and the physician must reimburse the third-party payer.", "choices": ["$296", "$1,184", "$1,480", "$2,368"], "answer": "$1,184", "rationales": {"$296": "Not this amount — it does not match the required calculation. The correct result is $1,184; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$1,184": "Correct — apply the payer percentage to the allowed charge, then the remaining percentage is the patient's responsibility.", "$1,480": "Not this amount — it does not match the required calculation. The correct result is $1,184; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$2,368": "Not this amount — it does not match the required calculation. The correct result is $1,184; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q24", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which is considered a financial source document from which an insurance claim is generated?", "choices": ["CMS-1500 claim", "encounter form", "ledger card", "patient record"], "answer": "encounter form", "rationales": {"CMS-1500 claim": "Not this one — Professional claim form used to bill physician/provider services. The question is asking for encounter form, so this option does not fit the exact wording.", "encounter form": "Correct — Source document listing current visit diagnoses/services; used to generate a claim.", "ledger card": "Not this one — Manual financial transaction record, but not the source document that generates a claim. The question is asking for encounter form, so this option does not fit the exact wording.", "patient record": "Not this one — Clinical record; not the financial source document for claim generation. The question is asking for encounter form, so this option does not fit the exact wording."}}, {"id": "Q25", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which is a document that contains a computer-generated list of hospital-based outpatient procedures, services, and supplies with charges for each?", "choices": ["charge description master", "electronic health record", "physician fee schedule", "UB-04 or CMS-1500 claim"], "answer": "charge description master", "rationales": {"charge description master": "Correct — Computer-generated facility list of procedures, services, supplies, and charges.", "electronic health record": "Not this one — it sounds plausible, but the key phrase in the question points to charge description master.", "physician fee schedule": "Not this one — List of physician fees/allowed amounts, not the hospital chargemaster. The question is asking for charge description master, so this option does not fit the exact wording.", "UB-04 or CMS-1500 claim": "Not this one — Claim forms, not the facility charge description master itself. The question is asking for charge description master, so this option does not fit the exact wording."}}, {"id": "Q26", "source": "Uploaded Chapter 03 pool", "concept": "charge", "question": "Chargemaster __________ is the process of updating and revising key elements of the chargemaster to ensure accurate reimbursement.", "choices": ["computerization", "documentation", "maintenance", "revenue generation"], "answer": "maintenance", "rationales": {"computerization": "Not this one — Using computers; not the update/revision process itself. The question is asking for maintenance, so this option does not fit the exact wording.", "documentation": "Not this one — Clinical/business recordkeeping; not specifically chargemaster updating. The question is asking for maintenance, so this option does not fit the exact wording.", "maintenance": "Correct — Updating and revising key chargemaster elements.", "revenue generation": "Not this one — Producing income, not the process name for chargemaster updating. The question is asking for maintenance, so this option does not fit the exact wording."}}, {"id": "Q27", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "A chargemaster team jointly shares the responsibility of updating and revising the chargemaster to ensure its __________.", "choices": ["accuracy", "compliance", "encryption", "revenue"], "answer": "accuracy", "rationales": {"accuracy": "Correct — Correctness of chargemaster elements so reimbursement is appropriate.", "compliance": "Not this one — Following rules; important, but the wording asks what the team ensures in the item. The question is asking for accuracy, so this option does not fit the exact wording.", "encryption": "Not this one — Protecting data; unrelated to chargemaster accuracy. The question is asking for accuracy, so this option does not fit the exact wording.", "revenue": "Not this one — Income; not the direct quality being ensured in that question. The question is asking for accuracy, so this option does not fit the exact wording."}}, {"id": "Q28", "source": "Uploaded Chapter 03 pool", "concept": "source", "question": "Which are preprinted on a facility’s chargemaster to indicate the location or type of service provided to an inpatient?", "choices": ["CPT codes", "HCPCS level II codes", "ICD-10-CM/PCS codes", "Revenue codes"], "answer": "Revenue codes", "rationales": {"CPT codes": "Not this one — Procedure/service codes, not facility revenue location/type codes. The question is asking for Revenue codes, so this option does not fit the exact wording.", "HCPCS level II codes": "Not this one — Codes for supplies, products, and certain services. The question is asking for Revenue codes, so this option does not fit the exact wording.", "ICD-10-CM/PCS codes": "Not this one — Diagnosis/inpatient procedure coding systems. The question is asking for Revenue codes, so this option does not fit the exact wording.", "Revenue codes": "Correct — Facility billing codes showing type/location of service."}}, {"id": "Q29", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "Revenue cycle management is the process by which health care facilities and providers ensure their financial viability by increasing __________, improving cash flow, and enhancing the patient’s experience.", "choices": ["charges", "costs", "patient satisfaction", "reimbursement"], "answer": "reimbursement", "rationales": {"charges": "Not this one — Provider/facility listed prices, not necessarily what is paid. The question is asking for reimbursement, so this option does not fit the exact wording.", "costs": "Not this one — Expense to deliver service; not the RCM target in this wording. The question is asking for reimbursement, so this option does not fit the exact wording.", "patient satisfaction": "Not this one — Important experience measure, but the blank asks the financial payment target. The question is asking for reimbursement, so this option does not fit the exact wording.", "reimbursement": "Correct — Money paid back/paid to provider for covered services."}}, {"id": "Q30", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "Revenue cycle monitoring assessment helps ensure __________ stability using standards of measurement (e.g., cash flow).", "choices": ["data analytics", "financial viability", "resource allocation", "validation and verification"], "answer": "financial viability", "rationales": {"data analytics": "Not this one — Using tools/systems to evaluate clinical and financial data. The question is asking for financial viability, so this option does not fit the exact wording.", "financial viability": "Correct — Ability of the organization to remain financially stable.", "resource allocation": "Not this one — Distributing financial resources among competing needs. The question is asking for financial viability, so this option does not fit the exact wording.", "validation and verification": "Not this one — Checking accuracy/confirmation; not the financial stability outcome. The question is asking for financial viability, so this option does not fit the exact wording."}}, {"id": "Q31", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "Which is an assessment process conducted as a follow-up to revenue cycle monitoring so that areas of poor performance can be identified and corrected?", "choices": ["data analytics", "financial viability", "resource allocation", "revenue cycle auditing"], "answer": "revenue cycle auditing", "rationales": {"data analytics": "Not this one — Using tools/systems to evaluate clinical and financial data. The question is asking for revenue cycle auditing, so this option does not fit the exact wording.", "financial viability": "Not this one — Ability of the organization to remain financially stable. The question is asking for revenue cycle auditing, so this option does not fit the exact wording.", "resource allocation": "Not this one — Distributing financial resources among competing needs. The question is asking for revenue cycle auditing, so this option does not fit the exact wording.", "revenue cycle auditing": "Correct — Follow-up assessment to find/correct poor revenue cycle performance."}}, {"id": "Q32", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "Which is the distribution of financial resources among competing groups?", "choices": ["data analytics", "financial viability", "resource allocation", "revenue cycle auditing"], "answer": "resource allocation", "rationales": {"data analytics": "Not this one — Using tools/systems to evaluate clinical and financial data. The question is asking for resource allocation, so this option does not fit the exact wording.", "financial viability": "Not this one — Ability of the organization to remain financially stable. The question is asking for resource allocation, so this option does not fit the exact wording.", "resource allocation": "Correct — Distributing financial resources among competing needs.", "revenue cycle auditing": "Not this one — Follow-up assessment to find/correct poor revenue cycle performance. The question is asking for resource allocation, so this option does not fit the exact wording."}}, {"id": "Q33", "source": "Uploaded Chapter 03 pool", "concept": "data", "question": "Resource allocation monitoring uses data __________ to measure whether a health care provider or organization achieves operational goals and objectives within the confines of the distribution of financial resources.", "choices": ["analytics", "encryption", "mining", "warehouses"], "answer": "analytics", "rationales": {"analytics": "Correct — this choice matches the concept tested by the wording of the question.", "encryption": "Not this one — Protecting data; unrelated to chargemaster accuracy. The question is asking for analytics, so this option does not fit the exact wording.", "mining": "Not this one — Extracting/analyzing data to identify patterns. The question is asking for analytics, so this option does not fit the exact wording.", "warehouses": "Not this one — it sounds plausible, but the key phrase in the question points to analytics."}}, {"id": "Q34", "source": "Uploaded Chapter 03 pool", "concept": "data", "question": "Data analytics are tools and systems that are used to __________, examine, and study clinical and financial data, conduct research, and evaluate the effectiveness of disease treatments.", "choices": ["evaluate", "encrypt", "outsource", "reimburse"], "answer": "evaluate", "rationales": {"evaluate": "Correct — this choice matches the concept tested by the wording of the question.", "encrypt": "Not this one — it sounds plausible, but the key phrase in the question points to evaluate.", "outsource": "Not this one — it sounds plausible, but the key phrase in the question points to evaluate.", "reimburse": "Not this one — it sounds plausible, but the key phrase in the question points to evaluate."}}, {"id": "Q35", "source": "Uploaded Chapter 03 pool", "concept": "data", "question": "Which are databases that use reporting interfaces to consolidate multiple databases, allowing reports to be generated from a single request?", "choices": ["data warehouses", "electronic health records", "resource allocations", "third-party administrators"], "answer": "data warehouses", "rationales": {"data warehouses": "Correct — Consolidated databases for reporting from multiple systems.", "electronic health records": "Not this one — Clinical information systems, not consolidated reporting databases. The question is asking for data warehouses, so this option does not fit the exact wording.", "resource allocations": "Not this one — it sounds plausible, but the key phrase in the question points to data warehouses.", "third-party administrators": "Not this one — Organizations administering benefits; not data storage systems. The question is asking for data warehouses, so this option does not fit the exact wording."}}, {"id": "Q36", "source": "Uploaded Chapter 03 pool", "concept": "data", "question": "The process of extracting and analyzing data to identify patterns, whether predictable or unpredictable, is called data __________.", "choices": ["allocation", "auditing", "mining", "warehousing"], "answer": "mining", "rationales": {"allocation": "Not this one — it sounds plausible, but the key phrase in the question points to mining.", "auditing": "Not this one — it sounds plausible, but the key phrase in the question points to mining.", "mining": "Correct — Extracting/analyzing data to identify patterns.", "warehousing": "Not this one — Consolidating data; not the pattern-extraction process. The question is asking for mining, so this option does not fit the exact wording."}}, {"id": "Q37", "source": "Uploaded Chapter 03 pool", "concept": "util", "question": "Which is a method of controlling health care costs and quality of care by reviewing the appropriateness and necessity of care provided to patients prior to the administration of care or after care has been provided?", "choices": ["health information management", "risk management", "quality management", "utilization management"], "answer": "utilization management", "rationales": {"health information management": "Not this one — Management of health records/data, not utilization review. The question is asking for utilization management, so this option does not fit the exact wording.", "risk management": "Not this one — Managing organizational risk; not primarily care necessity review. The question is asking for utilization management, so this option does not fit the exact wording.", "quality management": "Not this one — Improving quality, but not the specific cost/necessity review process. The question is asking for utilization management, so this option does not fit the exact wording.", "utilization management": "Correct — Review of appropriateness/necessity to manage cost and quality."}}, {"id": "Q38", "source": "Uploaded Chapter 03 pool", "concept": "util", "question": "Which is a review for medical necessity of tests and procedures ordered during an inpatient hospitalization?", "choices": ["concurrent review", "discharge planning", "preadmission certification", "preauthorization"], "answer": "concurrent review", "rationales": {"concurrent review": "Correct — Medical necessity review during an inpatient hospitalization.", "discharge planning": "Not this one — Arranging appropriate services after inpatient release. The question is asking for concurrent review, so this option does not fit the exact wording.", "preadmission certification": "Not this one — Approval/review before inpatient admission. The question is asking for concurrent review, so this option does not fit the exact wording.", "preauthorization": "Not this one — Prior approval before certain services/procedures. The question is asking for concurrent review, so this option does not fit the exact wording."}}, {"id": "Q39", "source": "Uploaded Chapter 03 pool", "concept": "util", "question": "Which involves arranging appropriate health care services for the patient who is being released from an inpatient hospitalization?", "choices": ["concurrent review", "discharge planning", "preadmission certification", "preauthorization"], "answer": "discharge planning", "rationales": {"concurrent review": "Not this one — Medical necessity review during an inpatient hospitalization. The question is asking for discharge planning, so this option does not fit the exact wording.", "discharge planning": "Correct — Arranging appropriate services after inpatient release.", "preadmission certification": "Not this one — Approval/review before inpatient admission. The question is asking for discharge planning, so this option does not fit the exact wording.", "preauthorization": "Not this one — Prior approval before certain services/procedures. The question is asking for discharge planning, so this option does not fit the exact wording."}}, {"id": "Q40", "source": "Uploaded Chapter 03 pool", "concept": "case", "question": "Which involves the development of patient care plans for the coordination and provision of care for complicated cases in a cost-effective manner?", "choices": ["case management", "risk management", "quality management", "utilization management"], "answer": "case management", "rationales": {"case management": "Correct — Coordinated care planning for complicated cases in a cost-effective manner.", "risk management": "Not this one — Managing organizational risk; not primarily care necessity review. The question is asking for case management, so this option does not fit the exact wording.", "quality management": "Not this one — Improving quality, but not the specific cost/necessity review process. The question is asking for case management, so this option does not fit the exact wording.", "utilization management": "Not this one — Review of appropriateness/necessity to manage cost and quality. The question is asking for case management, so this option does not fit the exact wording."}}, {"id": "Q41", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "The purpose of an integrated revenue cycle (IRC), which combines revenue cycle management with clinical, coding, and information management decisions, is to __________.", "choices": ["destabilize health care", "impact financial management", "increase facility costs", "reduce payer reimbursement"], "answer": "impact financial management", "rationales": {"destabilize health care": "Not this one — it sounds plausible, but the key phrase in the question points to impact financial management.", "impact financial management": "Correct — Connect clinical/coding/information decisions to financial outcomes.", "increase facility costs": "Not this one — it sounds plausible, but the key phrase in the question points to impact financial management.", "reduce payer reimbursement": "Not this one — it sounds plausible, but the key phrase in the question points to impact financial management."}}, {"id": "Q42", "source": "Uploaded Chapter 03 pool", "concept": "cob", "question": "When a patient has two insurances, and they must be coordinated to determine which insurance is primary/secondary and how much each carrier will pay, that process is known as __________.", "choices": ["explanation of benefits", "coordination of benefits", "adjudication of claims", "provider write-off amount"], "answer": "coordination of benefits", "rationales": {"explanation of benefits": "Not this one — Document sent to the patient explaining how a claim was processed. The question is asking for coordination of benefits, so this option does not fit the exact wording.", "coordination of benefits": "Correct — Process deciding primary/secondary payment when a patient has multiple insurances.", "adjudication of claims": "Not this one — Payer's process of deciding how a claim will be paid/denied. The question is asking for coordination of benefits, so this option does not fit the exact wording.", "provider write-off amount": "Not this one — Amount provider adjusts off, commonly difference between charge and allowed amount for PAR contracts. The question is asking for coordination of benefits, so this option does not fit the exact wording."}}, {"id": "Q43", "source": "Uploaded Chapter 03 pool", "concept": "par", "question": "When a participating provider charges $120.00 for an office visit, and the insurance allows $100.00, what will be the participating provider write-off amount for this service?", "choices": ["$0.00", "$40.00", "$20.00", "$10.00"], "answer": "$20.00", "rationales": {"$0.00": "Not this amount — it does not match the required calculation. The correct result is $20.00; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$40.00": "Not this amount — it does not match the required calculation. The correct result is $20.00; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$20.00": "Correct — write-off logic compares the provider's charge with the allowed/contracted amount when a write-off applies.", "$10.00": "Not this amount — it does not match the required calculation. The correct result is $20.00; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q44", "source": "Uploaded Chapter 03 pool", "concept": "rcm", "question": "The revenue management process, when performed in the physician’s office setting, is also referred to as __________.", "choices": ["accounts payable management", "accounts receivable management", "charge capturing", "data analytics"], "answer": "accounts receivable management", "rationales": {"accounts payable management": "Not this one — Managing money the practice owes others. The question is asking for accounts receivable management, so this option does not fit the exact wording.", "accounts receivable management": "Correct — Physician-office revenue management focused on money owed to the practice.", "charge capturing": "Not this one — Capturing all charges for services performed during an encounter. The question is asking for accounts receivable management, so this option does not fit the exact wording.", "data analytics": "Not this one — Using tools/systems to evaluate clinical and financial data. The question is asking for accounts receivable management, so this option does not fit the exact wording."}}, {"id": "Q45", "source": "Uploaded Chapter 03 pool", "concept": "charge", "question": "Process where all charges for service performed during an encounter are captured is referred to as __________.", "choices": ["data analytics", "accounts payable", "charge capturing", "financial viability"], "answer": "charge capturing", "rationales": {"data analytics": "Not this one — Using tools/systems to evaluate clinical and financial data. The question is asking for charge capturing, so this option does not fit the exact wording.", "accounts payable": "Not this one — Money the practice owes; not service charge capture. The question is asking for charge capturing, so this option does not fit the exact wording.", "charge capturing": "Correct — Capturing all charges for services performed during an encounter.", "financial viability": "Not this one — Ability of the organization to remain financially stable. The question is asking for charge capturing, so this option does not fit the exact wording."}}, {"id": "Q46", "source": "Added CBCS-style application item", "concept": "patientresp", "question": "A patient has met a $500 deductible. The allowed charge for today's covered service is $200, and the plan pays 80% after deductible. What should the patient owe as coinsurance?", "choices": ["$20", "$40", "$160", "$200"], "answer": "$40", "rationales": {"$20": "Not this amount — it does not match the required calculation. The correct result is $40; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$40": "Correct — the dollar amount matches the revenue-management calculation in the scenario.", "$160": "Not this amount — it does not match the required calculation. The correct result is $40; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$200": "Not this amount — it does not match the required calculation. The correct result is $40; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q47", "source": "Added CBCS-style application item", "concept": "util", "question": "A claim for an MRI is denied because the payer required approval before the service. Which action best prevents this issue next time?", "choices": ["Verify prior authorization requirements before the service", "Send the EOB to the patient before scheduling", "Change the diagnosis code after denial", "Bill the patient before claim submission"], "answer": "Verify prior authorization requirements before the service", "rationales": {"Verify prior authorization requirements before the service": "Correct — this choice matches the concept tested by the wording of the question.", "Send the EOB to the patient before scheduling": "Not this one — it sounds plausible, but the key phrase in the question points to Verify prior authorization requirements before the service.", "Change the diagnosis code after denial": "Not this one — it sounds plausible, but the key phrase in the question points to Verify prior authorization requirements before the service.", "Bill the patient before claim submission": "Not this one — it sounds plausible, but the key phrase in the question points to Verify prior authorization requirements before the service."}}, {"id": "Q48", "source": "Added CBCS-style application item", "concept": "source", "question": "The provider documents an office visit for acute ear pain and orders a hearing test. Which item most strongly supports medical necessity?", "choices": ["The diagnosis/reason for the test is linked to the ordered service", "The patient's balance is paid before the visit", "The claim is printed on a CMS-1500 form", "The provider uses a participating payer contract"], "answer": "The diagnosis/reason for the test is linked to the ordered service", "rationales": {"The diagnosis/reason for the test is linked to the ordered service": "Correct — this choice matches the concept tested by the wording of the question.", "The patient's balance is paid before the visit": "Not this one — it sounds plausible, but the key phrase in the question points to The diagnosis/reason for the test is linked to the ordered service.", "The claim is printed on a CMS-1500 form": "Not this one — it sounds plausible, but the key phrase in the question points to The diagnosis/reason for the test is linked to the ordered service.", "The provider uses a participating payer contract": "Not this one — it sounds plausible, but the key phrase in the question points to The diagnosis/reason for the test is linked to the ordered service."}}, {"id": "Q49", "source": "Added CBCS-style application item", "concept": "cob", "question": "A patient has two active policies. The biller needs to decide which payer receives the claim first. Which process applies?", "choices": ["Coordination of benefits", "Charge capture", "Data mining", "Case management"], "answer": "Coordination of benefits", "rationales": {"Coordination of benefits": "Correct — Process deciding primary/secondary payment when a patient has multiple insurances.", "Charge capture": "Not this one — it sounds plausible, but the key phrase in the question points to Coordination of benefits.", "Data mining": "Not this one — it sounds plausible, but the key phrase in the question points to Coordination of benefits.", "Case management": "Not this one — Coordinated care planning for complicated cases in a cost-effective manner. The question is asking for Coordination of benefits, so this option does not fit the exact wording."}}, {"id": "Q50", "source": "Added CBCS-style application item", "concept": "par", "question": "A PAR provider charges $180, the allowed amount is $145, the copay is $25, and the payer pays $120. What is the contractual write-off?", "choices": ["$35", "$25", "$120", "$145"], "answer": "$35", "rationales": {"$35": "Correct — write-off logic compares the provider's charge with the allowed/contracted amount when a write-off applies.", "$25": "Not this amount — it does not match the required calculation. The correct result is $35; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$120": "Not this amount — it does not match the required calculation. The correct result is $35; always identify charge, allowed amount, patient share, payer payment, and write-off separately.", "$145": "Not this amount — it does not match the required calculation. The correct result is $35; always identify charge, allowed amount, patient share, payer payment, and write-off separately."}}, {"id": "Q51", "source": "Added CBCS-style application item", "concept": "data", "question": "A report compares denial rates by payer, procedure, and diagnosis pattern over six months. Which concept is being used?", "choices": ["Data analytics", "Discharge planning", "Assignment of benefits", "Patient ledger"], "answer": "Data analytics", "rationales": {"Data analytics": "Correct — Using tools/systems to evaluate clinical and financial data.", "Discharge planning": "Not this one — Arranging appropriate services after inpatient release. The question is asking for Data analytics, so this option does not fit the exact wording.", "Assignment of benefits": "Not this one — Patient authorizes insurance payment to go directly to the provider. The question is asking for Data analytics, so this option does not fit the exact wording.", "Patient ledger": "Not this one — Manual permanent record of financial transactions. The question is asking for Data analytics, so this option does not fit the exact wording."}}, {"id": "Q52", "source": "Added CBCS-style application item", "concept": "charge", "question": "A hospital outpatient department updates service charges, revenue codes, and linked billing codes in its master list. What work is this?", "choices": ["Chargemaster maintenance", "Accounts payable management", "Birthday rule review", "Preadmission certification"], "answer": "Chargemaster maintenance", "rationales": {"Chargemaster maintenance": "Correct — this choice matches the concept tested by the wording of the question.", "Accounts payable management": "Not this one — Managing money the practice owes others. The question is asking for Chargemaster maintenance, so this option does not fit the exact wording.", "Birthday rule review": "Not this one — it sounds plausible, but the key phrase in the question points to Chargemaster maintenance.", "Preadmission certification": "Not this one — Approval/review before inpatient admission. The question is asking for Chargemaster maintenance, so this option does not fit the exact wording."}}, {"id": "Q53", "source": "Added CBCS-style application item", "concept": "util", "question": "A patient is discharged after a stroke and needs home health, therapy, and equipment arranged before leaving the hospital. Which process is this?", "choices": ["Discharge planning", "Concurrent review", "Revenue code assignment", "Assignment of benefits"], "answer": "Discharge planning", "rationales": {"Discharge planning": "Correct — Arranging appropriate services after inpatient release.", "Concurrent review": "Not this one — Medical necessity review during an inpatient hospitalization. The question is asking for Discharge planning, so this option does not fit the exact wording.", "Revenue code assignment": "Not this one — it sounds plausible, but the key phrase in the question points to Discharge planning.", "Assignment of benefits": "Not this one — Patient authorizes insurance payment to go directly to the provider. The question is asking for Discharge planning, so this option does not fit the exact wording."}}, {"id": "Q54", "source": "Added CBCS-style application item", "concept": "source", "question": "A coder sees 'rule out pneumonia' but no confirmed diagnosis; the provider documents cough and fever as current symptoms. What is the safest coding logic for outpatient billing?", "choices": ["Code the documented symptoms when the diagnosis is not confirmed", "Code pneumonia because it was considered", "Code only the procedure and omit diagnosis coding", "Code the patient's insurance plan type"], "answer": "Code the documented symptoms when the diagnosis is not confirmed", "rationales": {"Code the documented symptoms when the diagnosis is not confirmed": "Correct — this choice matches the concept tested by the wording of the question.", "Code pneumonia because it was considered": "Not this one — it sounds plausible, but the key phrase in the question points to Code the documented symptoms when the diagnosis is not confirmed.", "Code only the procedure and omit diagnosis coding": "Not this one — it sounds plausible, but the key phrase in the question points to Code the documented symptoms when the diagnosis is not confirmed.", "Code the patient's insurance plan type": "Not this one — it sounds plausible, but the key phrase in the question points to Code the documented symptoms when the diagnosis is not confirmed."}}, {"id": "Q55", "source": "Added CBCS-style application item", "concept": "assignment", "question": "A patient signs a form allowing the insurer to pay the physician directly. Which concept is this?", "choices": ["Assignment of benefits", "Accept assignment", "Coordination of benefits", "Coinsurance"], "answer": "Assignment of benefits", "rationales": {"Assignment of benefits": "Correct — Patient authorizes insurance payment to go directly to the provider.", "Accept assignment": "Not this one — Provider agrees to accept the payer's allowed amount as payment in full. The question is asking for Assignment of benefits, so this option does not fit the exact wording.", "Coordination of benefits": "Not this one — Process deciding primary/secondary payment when a patient has multiple insurances. The question is asking for Assignment of benefits, so this option does not fit the exact wording.", "Coinsurance": "Not this one — Percentage the patient pays for covered services after deductible/copay rules. The question is asking for Assignment of benefits, so this option does not fit the exact wording."}}]};
+
+const palette = [
+  ['#FFE3D1','#FFBFA8','#7A2F1D'], ['#E3F6FF','#9ED8FF','#123B59'], ['#F1E6FF','#C8AAFF','#392064'],
+  ['#E6FFF2','#9BE7C4','#11452E'], ['#FFF4BF','#FFE07D','#5B4300'], ['#FFE3EF','#FFADCB','#5B1732'],
+  ['#E7F0FF','#AFC8FF','#1E3266'], ['#EFFFFC','#9BEDE2','#164A45'], ['#FFF0D8','#FFC982','#6B3A06'],
+  ['#F3FFE3','#C9EB87','#40530D'], ['#F0E8DD','#D8BFA5','#4E382A'], ['#E9E6FF','#BDB7FF','#272059']
+];
+
+let state = {
+  practiceList: [], practiceIndex: 0, challengeList: [], challengeIndex: 0, current: null,
+  timers: {}, sim: []
+};
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i=a.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function now() { return performance.now(); }
+function seconds(ms) { return Math.round(ms/100)/10; }
+function getStats() { return JSON.parse(localStorage.getItem('cbcsStats') || '{}'); }
+function saveStats(stats) { localStorage.setItem('cbcsStats', JSON.stringify(stats)); renderReport(); renderChallengeStats(); }
+function recordAttempt(q, selected, timing, mode) {
+  const stats = getStats();
+  if (!stats[q.id]) stats[q.id] = { attempts:0, correct:0, history:[] };
+  const good = selected === q.answer;
+  stats[q.id].attempts++;
+  if (good) stats[q.id].correct++;
+  stats[q.id].history.push({
+    date:new Date().toLocaleString(),
+    mode, selected, correct:good,
+    readSec:timing.readSec||0, answerSec:timing.answerSec||0, rationaleSec:timing.rationaleSec||0,
+    concept:q.concept
+  });
+  saveStats(stats);
+}
+function conceptById(id) { return DATA.concepts.find(c=>c.id===id) || DATA.concepts[0]; }
+function qById(id) { return DATA.questions.find(q=>q.id===id); }
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.panel).classList.add('active');
+    if(btn.dataset.panel==='report') renderReport();
+    if(btn.dataset.panel==='challenge') renderChallengeStats();
+  });
+});
+
+function initFilters() {
+  const opts = ['All concepts', ...DATA.concepts.map(c=>c.title)];
+  const ids = ['all', ...DATA.concepts.map(c=>c.id)];
+  ['conceptFilter','practiceFilter'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = opts.map((o,i)=>`<option value="${ids[i]}">${o}</option>`).join('');
+  });
+}
+
+function renderFlashcards() {
+  const filter = document.getElementById('conceptFilter').value;
+  const concepts = filter==='all' ? DATA.concepts : DATA.concepts.filter(c=>c.id===filter);
+  document.getElementById('flashGrid').innerHTML = concepts.map((c,i) => {
+    const p = palette[DATA.concepts.findIndex(x=>x.id===c.id)%palette.length];
+    const linkedCount = DATA.questions.filter(q=>q.concept===c.id).length;
+    const choices = shuffle(c.checkChoices);
+    return `<article class="flashcard" onclick="flipCard(event,this)">
+      <div class="flash-inner">
+        <div class="face" style="background:linear-gradient(145deg,${p[0]},${p[1]}); color:${p[2]}">
+          <span class="badge">${c.category}</span>
+          <h3>${c.title}</h3>
+          <p>${markTerms(c.front)}</p>
+          <p class="small" style="color:${p[2]}"><b>${linkedCount}</b> connected questions in the bank</p>
+          <p class="flashHint" style="color:${p[2]}">Click card to see the deeper explanation.</p>
+          <div class="checkbox" onclick="event.stopPropagation()">
+            <b>Concept check</b>
+            <p class="small" style="color:${p[2]}">${c.check}</p>
+            <div class="check-options">${choices.map(x=>`<button data-choice="${encodeURIComponent(x)}" data-answer="${encodeURIComponent(c.checkAnswer)}" onclick="checkConcept(this, decodeURIComponent(this.dataset.choice), decodeURIComponent(this.dataset.answer))">${x}</button>`).join('')}</div>
+          </div>
+        </div>
+        <div class="face back">
+          <span class="badge" style="background:${p[0]}; color:${p[2]}">Back of card</span>
+          <h3>${c.title}</h3>
+          <p>${markTerms(c.back)}</p>
+          <p class="flashHint">Click card again to return to the front.</p>
+          <button class="studyLink primary" onclick="event.stopPropagation(); jumpToPractice('${c.id}')">Practice this concept</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+function escapeAttr(s) { return String(s).replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
+function flipCard(e, el) { if(e.target.tagName !== 'BUTTON') el.classList.toggle('flipped'); }
+function markTerms(text) {
+  const terms = ['allowed amount','payment in full','assignment of benefits','deductible','copayment','coinsurance','out-of-pocket','write-off','birthday rule','encounter form','superbill','chargemaster','day sheet','revenue cycle','data analytics','data warehouses','data mining','utilization management','concurrent review','discharge planning','case management'];
+  let t = text;
+  terms.forEach(term => {
+    const re = new RegExp(`\\b(${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})\\b`, 'ig');
+    t = t.replace(re, '<span class="highlight">$1</span>');
+  });
+  return t;
+}
+function checkConcept(btn, selected, answer) {
+  const wrap = btn.parentElement;
+  [...wrap.children].forEach(b=>b.disabled=true);
+  if(selected===answer) {
+    btn.classList.add('correct'); btn.style.background='#eafff2'; btn.style.border='1px solid rgba(23,114,69,.5)';
+    btn.insertAdjacentHTML('afterend','<p class="small"><b>Correct.</b> You matched the concept to the wording.</p>');
+  } else {
+    btn.classList.add('wrong'); btn.style.background='#fff0f2';
+    [...wrap.children].forEach(b=>{ if(b.textContent===answer) { b.style.background='#eafff2'; b.style.border='1px solid rgba(23,114,69,.5)'; } });
+    btn.insertAdjacentHTML('afterend',`<p class="small"><b>Review:</b> The correct answer is <b>${answer}</b>. The wording matters.</p>`);
+  }
+}
+function jumpToPractice(concept) {
+  document.querySelector('[data-panel="practice"]').click();
+  document.getElementById('practiceFilter').value = concept;
+  startPractice();
+}
+
+function startPractice() {
+  const filter = document.getElementById('practiceFilter').value;
+  state.practiceList = shuffle(DATA.questions.filter(q=> filter==='all' || q.concept===filter));
+  state.practiceIndex = 0;
+  renderPracticeQuestion();
+}
+function renderPracticeQuestion() {
+  const area = document.getElementById('practiceArea');
+  if(!state.practiceList.length) { area.innerHTML='<p>No questions in this set.</p>'; return; }
+  if(state.practiceIndex >= state.practiceList.length) {
+    area.innerHTML = `<h3>Practice complete.</h3><p>You completed ${state.practiceList.length} questions. Open the report or build an adaptive challenge set.</p>
+      <button class="primary" onclick="document.querySelector('[data-panel=challenge]').click()">Go to Adaptive Challenge</button>`;
+    document.getElementById('practiceProgress').style.width = '100%';
+    return;
+  }
+  const q = state.practiceList[state.practiceIndex];
+  state.current = q;
+  state.timers = {start:now(), choices:0, answer:0, rationaleStart:0};
+  const pct = Math.round((state.practiceIndex/state.practiceList.length)*100);
+  document.getElementById('practiceProgress').style.width = pct + '%';
+  area.innerHTML = questionShell(q, state.practiceIndex+1, state.practiceList.length, false);
+}
+function questionShell(q, num, total, isChallenge) {
+  const c = conceptById(q.concept);
+  return `<div class="meta">
+      <span class="pill">${q.id}</span><span class="pill">${c.title}</span><span class="pill">${q.source}</span><span class="pill">${num} / ${total}</span>
+    </div>
+    <div class="modeExplain"><b>Practice process:</b> First, read only the question stem and identify what it is really asking. Then click the button to reveal the answer choices. This trains you not to jump at familiar words too quickly. The timer is not here to shame you; it helps you compare effective reading with rushed reading and build test-day control.</div>
+    <div class="questionText">${q.question}</div>
+    <div class="timerStrip">
+      <div class="timerTile"><span class="small">Question reading</span><b id="readTime">—</b></div>
+      <div class="timerTile"><span class="small">Answer decision</span><b id="answerTime">—</b></div>
+      <div class="timerTile"><span class="small">Rationale reading</span><b id="rationaleTime">—</b></div>
+    </div>
+    <button id="showChoicesBtn" class="primary" onclick="showPracticeChoices()">I understand the stem — show answer choices</button>
+    <div id="choiceArea" class="options" style="margin-top:14px"></div>
+    <div id="rationaleBox" class="rationale"></div>`;
+}
+function challengeShell(q, num, total) {
+  const c = conceptById(q.concept);
+  const choices = shuffle(q.choices);
+  return `<div class="meta">
+      <span class="pill">${q.id}</span><span class="pill">${c.title}</span><span class="pill">${q.source}</span><span class="pill">${num} / ${total}</span>
+    </div>
+    <div class="questionText">${q.question}</div>
+    <div class="timerStrip">
+      <div class="timerTile"><span class="small">Answer decision</span><b id="answerTime">—</b></div>
+      <div class="timerTile"><span class="small">Rationale reading</span><b id="rationaleTime">—</b></div>
+    </div>
+    <div id="choiceArea" class="options" style="margin-top:14px">${choices.map(ch=>`<button class="option" data-choice="${encodeURIComponent(ch)}" onclick="answerChallenge(decodeURIComponent(this.dataset.choice), this)">${ch}</button>`).join('')}</div>
+    <div id="rationaleBox" class="rationale"></div>`;
+}
+function showPracticeChoices() {
+  state.timers.choices = now();
+  document.getElementById('readTime').textContent = seconds(state.timers.choices - state.timers.start) + ' sec';
+  document.getElementById('showChoicesBtn').disabled=true;
+  const q = state.current;
+  document.getElementById('choiceArea').innerHTML = shuffle(q.choices).map(ch=>`<button class="option" onclick="answerPractice('${escapeAttr(ch)}', this)">${ch}</button>`).join('');
+}
+function answerPractice(selected, btn) {
+  const q = state.current;
+  state.timers.answer = now();
+  document.getElementById('answerTime').textContent = seconds(state.timers.answer - state.timers.choices) + ' sec';
+  [...document.querySelectorAll('.option')].forEach(b=> {
+    b.disabled=true;
+    if(b.textContent===q.answer) b.classList.add('correct');
+    if(b===btn && selected!==q.answer) b.classList.add('wrong');
+  });
+  state.timers.rationaleStart = now();
+  const box = document.getElementById('rationaleBox');
+  box.classList.add('show');
+  state.pendingPracticeSelected = selected;
+  box.innerHTML = buildRationale(q, selected) + `<button class="primary" onclick="nextPractice()">I read the rationale — continue</button>`;
+}
+function nextPractice() {
+  const selected = state.pendingPracticeSelected || '';
+  const rationaleSec = seconds(now() - state.timers.rationaleStart);
+  document.getElementById('rationaleTime').textContent = rationaleSec + ' sec';
+  recordAttempt(state.current, selected, {
+    readSec: seconds(state.timers.choices - state.timers.start),
+    answerSec: seconds(state.timers.answer - state.timers.choices),
+    rationaleSec
+  }, 'practice');
+  state.pendingPracticeSelected = '';
+  state.practiceIndex++;
+  renderPracticeQuestion();
+}
+function buildRationale(q, selected) {
+  const lines = q.choices.map((ch,i)=>`<div class="ratLine"><b>${String.fromCharCode(65+i)}. ${ch}</b><br>${q.rationales[ch] || (ch===q.answer?'Correct.':'Not the best answer for this wording.')}</div>`).join('');
+  const c = conceptById(q.concept);
+  return `<h3>${selected===q.answer?'Correct':'Not quite'} — Answer: ${q.answer}</h3>
+    <p><b>Study connection:</b> ${c.title}. ${c.front}</p>
+    ${lines}
+    <button onclick="jumpToFlashcard('${q.concept}')">Review this flashcard</button>`;
+}
+function jumpToFlashcard(concept) {
+  document.querySelector('[data-panel="learn"]').click();
+  document.getElementById('conceptFilter').value=concept;
+  renderFlashcards();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function renderChallengeStats() {
+  const stats = getStats();
+  const attempted = Object.keys(stats).length;
+  const missed = DATA.questions.filter(q => stats[q.id] && stats[q.id].correct < stats[q.id].attempts).length;
+  const untried = DATA.questions.length - attempted;
+  const avg = average(Object.values(stats).flatMap(s=>s.history.map(h=>h.answerSec)).filter(Boolean));
+  document.getElementById('challengeStats').innerHTML = `
+    <div class="stat"><span class="small">Questions attempted</span><b>${attempted}</b></div>
+    <div class="stat"><span class="small">Questions missed at least once</span><b>${missed}</b></div>
+    <div class="stat"><span class="small">Questions not practiced yet</span><b>${untried}</b></div>
+    <div class="stat"><span class="small">Avg answer decision time</span><b>${avg?avg.toFixed(1):'—'}s</b></div>`;
+}
+function average(a) { return a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0; }
+function weaknessScore(q) {
+  const stats = getStats()[q.id];
+  if(!stats) return 100;
+  const attempts = stats.attempts || 0;
+  const acc = attempts ? stats.correct/attempts : 0;
+  const last = stats.history[stats.history.length-1] || {};
+  return (1-acc)*80 + Math.min((last.readSec||0)/8, 2)*10 + Math.min((last.answerSec||0)/10, 2)*10 + (last.correct?0:30);
+}
+function startChallenge() {
+  if(state.challengeAutoAdvanceTimer) clearTimeout(state.challengeAutoAdvanceTimer);
+  state.challengeList = DATA.questions.map(q=>({q,score:weaknessScore(q)})).sort((a,b)=>b.score-a.score).slice(0,15).map(x=>x.q);
+  state.challengeIndex = 0;
+  state.pendingChallengeSelected = '';
+  state.challengeAnswered = false;
+  renderChallengeQuestion();
+}
+function renderChallengeQuestion() {
+  if(state.challengeAutoAdvanceTimer) clearTimeout(state.challengeAutoAdvanceTimer);
+  const area = document.getElementById('challengeArea');
+  if(!state.challengeList.length) { area.innerHTML='<p>Click the button above to build a challenge set.</p>'; return; }
+  if(state.challengeIndex >= state.challengeList.length) {
+    area.innerHTML = `<h3>Challenge complete.</h3><p>Your challenge attempts were added to the report.</p><button class="primary" onclick="document.querySelector('[data-panel=report]').click()">Open Report</button>`;
+    document.getElementById('challengeProgress').style.width='100%';
+    return;
+  }
+  const q = state.challengeList[state.challengeIndex];
+  state.current=q;
+  state.pendingChallengeSelected = '';
+  state.challengeAnswered = false;
+  state.timers={start:now(),choices:0,answer:0,rationaleStart:0};
+  document.getElementById('challengeProgress').style.width = Math.round((state.challengeIndex/state.challengeList.length)*100)+'%';
+  area.innerHTML = challengeShell(q, state.challengeIndex+1, state.challengeList.length);
+}
+function answerChallenge(selected, btn) {
+  if(state.challengeAnswered) return;
+  const q=state.current;
+  if(!q) return;
+  state.challengeAnswered = true;
+  state.pendingChallengeSelected = selected;
+  state.timers.answer=now();
+  const answerTime = seconds(state.timers.answer-state.timers.start);
+  const at = document.getElementById('answerTime');
+  if(at) at.textContent = answerTime+' sec';
+  [...document.querySelectorAll('#challengeArea .option')].forEach(b=>{
+    b.disabled=true;
+    if(b.textContent===q.answer) b.classList.add('correct');
+  });
+  if(selected!==q.answer && btn) btn.classList.add('wrong');
+  state.timers.rationaleStart=now();
+  const box=document.getElementById('rationaleBox');
+  if(box) {
+    box.classList.add('show');
+    box.innerHTML = buildRationale(q, selected) + `<p class="small"><b>Moving to the next question automatically...</b></p>`;
+  }
+  recordAttempt(q, selected, {
+    readSec:0,
+    answerSec:answerTime,
+    rationaleSec:0
+  }, 'challenge');
+  state.challengeAutoAdvanceTimer = setTimeout(() => {
+    state.challengeIndex++;
+    state.pendingChallengeSelected = '';
+    state.challengeAnswered = false;
+    renderChallengeQuestion();
+  }, 1600);
+}
+function nextChallenge() {
+  if(state.challengeAutoAdvanceTimer) clearTimeout(state.challengeAutoAdvanceTimer);
+  state.challengeIndex++;
+  state.pendingChallengeSelected = '';
+  state.challengeAnswered = false;
+  renderChallengeQuestion();
+}
+
+function startSimulation() {
+  state.sim = shuffle(DATA.questions).slice(0,20).map(q=>({q, choices:shuffle(q.choices), selected:null, start:0, answerTime:0}));
+  state.simIndex = 0;
+  renderSimulationQuestion();
+}
+function renderSimulationQuestion() {
+  const area = document.getElementById('simulationArea');
+  if(!state.sim || !state.sim.length) { area.innerHTML='<p>Click the button above to generate a simulation test.</p>'; return; }
+  if(state.simIndex >= state.sim.length) { submitSimulation(); return; }
+  const item = state.sim[state.simIndex];
+  if(!item.start) item.start = now();
+  const i = state.simIndex;
+  const progress = Math.round((i/state.sim.length)*100);
+  area.innerHTML = `<div class="questionBox">
+    <div class="progressOuter"><div class="progressInner" style="width:${progress}%"></div></div>
+    <div class="meta"><span class="pill">Simulation</span><span class="pill">${i+1} / ${state.sim.length}</span><span class="pill">${conceptById(item.q.concept).title}</span></div>
+    <div class="questionText">${item.q.question}</div>
+    <div class="options">${item.choices.map(ch=>`<button class="option ${item.selected===ch?'simChosen':''}" data-choice="${encodeURIComponent(ch)}" onclick="saveSimAnswer(${i}, decodeURIComponent(this.dataset.choice), this)">${ch}</button>`).join('')}</div>
+    <div class="simNav">
+      <button onclick="previousSimulationQuestion()" ${i===0?'disabled':''}>Previous</button>
+      <button class="primary" onclick="nextSimulationQuestion()" ${item.selected?'':'disabled'}>${i===state.sim.length-1?'Finish simulation':'Next question'}</button>
+    </div>
+    <p class="small">Simulation mode shows one question at a time. Rationales appear after the test so the experience stays test-like.</p>
+  </div>`;
+}
+function saveSimAnswer(i, selected, btn) {
+  state.sim[i].selected=selected;
+  state.sim[i].answerTime=now();
+  renderSimulationQuestion();
+}
+function nextSimulationQuestion() {
+  const item=state.sim[state.simIndex];
+  if(!item || !item.selected) { alert('Choose an answer before moving forward.'); return; }
+  state.simIndex++;
+  renderSimulationQuestion();
+}
+function previousSimulationQuestion() {
+  if(state.simIndex>0) { state.simIndex--; renderSimulationQuestion(); }
+}
+function submitSimulation() {
+  let score=0;
+  state.sim.forEach(item => {
+    if(item.selected===item.q.answer) score++;
+    recordAttempt(item.q, item.selected || 'No answer', {readSec:0, answerSec:seconds((item.answerTime||now())-item.start), rationaleSec:0}, 'simulation');
+  });
+  const area=document.getElementById('simulationArea');
+  const pct=Math.round(score/state.sim.length*100);
+  const missed = state.sim.filter(item=>item.selected!==item.q.answer);
+  area.innerHTML = `<div class="card"><h2>Simulation Score: ${score} / ${state.sim.length} (${pct}%)</h2>
+    <p>${pct>=85?'Strong performance. Now focus on speed and precision.':pct>=70?'Solid start. Review the missed concepts and retest.':'You need targeted review before test day. Do not just reread; practice the weak concepts.'}</p>
+    <p><b>Missed concept targets:</b> ${missed.length ? [...new Set(missed.map(x=>conceptById(x.q.concept).title))].join(', ') : 'No missed concepts in this simulation.'}</p>
+    <label><b>Student reflection:</b></label>
+    <textarea class="reflection" id="simReflection" placeholder="Which concept slowed you down? Which wrong answer tempted you? What will you review before the next attempt?"></textarea>
+    <button onclick="saveReflection()">Save Reflection to Report</button></div>` +
+    (missed.length ? `<div class="card"><h3>Review missed simulation items</h3><p class="small">These are shown here for learning. The printable report summarizes patterns instead of listing every question.</p></div>` : '') +
+    missed.map((item,i)=>`<div class="simItem"><h4>${i+1}. ${item.q.question}</h4>
+      <p><b>Your answer:</b> ${item.selected || 'No answer'}<br><b>Correct answer:</b> ${item.q.answer}</p>
+      ${buildRationale(item.q, item.selected || '')}</div>`).join('');
+}
+function saveReflection() {
+  const val=document.getElementById('simReflection')?.value || '';
+  localStorage.setItem('cbcsReflection', val);
+  renderReport();
+  alert('Reflection saved to the report.');
+}
+
+function allHistory(stats) {
+  return Object.values(stats).flatMap(s => s.history || []);
+}
+function getPerformanceFeedback(stats) {
+  const history = allHistory(stats);
+  const practice = history.filter(h => h.mode === 'practice');
+  const totalAttempts = history.length;
+  const totalCorrect = history.filter(h => h.correct).length;
+  const accuracy = totalAttempts ? totalCorrect / totalAttempts : 0;
+  const avgRead = average(practice.map(h=>h.readSec).filter(x=>x>0));
+  const avgAnswer = average(history.map(h=>h.answerSec).filter(x=>x>0));
+  const avgRationale = average(history.map(h=>h.rationaleSec).filter(x=>x>0));
+  let readClass='feedbackBalanced', readTitle='Reading pattern: building awareness', readMsg='Use practice mode to separate stem reading from answer-choice scanning. The timer makes your process visible so you can improve it.';
+  if(avgRead) {
+    if(avgRead <= 15) { readClass='feedbackWatch'; readTitle='Reading pattern: very fast'; readMsg='You are moving through stems quickly. That is only a strength if accuracy stays high. Slow down on questions with negatives, payer rules, calculations, or similar-looking terms.'; }
+    else if(avgRead <= 35) { readClass='feedbackStrong'; readTitle='Reading pattern: efficient'; readMsg='Your stem-reading pace looks efficient. Keep proving that speed with accuracy: identify the task, the payer rule, and the exact term being tested.'; }
+    else if(avgRead <= 55) { readClass='feedbackBalanced'; readTitle='Reading pattern: careful'; readMsg='You are taking time to read. Now work on targeted reading: identify the task first, then ignore details that do not control the answer.'; }
+    else { readClass='feedbackUrgent'; readTitle='Reading pattern: too heavy'; readMsg='You may be rereading too much or getting lost in details. Practice extracting only the controlling words: who, what rule, what amount, what document, and what action.'; }
+  }
+  let accClass='feedbackBalanced', accTitle='Accuracy pattern: not enough data yet', accMsg='Complete more practice questions so the report can give a stronger recommendation.';
+  if(totalAttempts) {
+    if(accuracy >= .85) { accClass='feedbackStrong'; accTitle='Accuracy pattern: strong'; accMsg='Your accuracy is test-ready on attempted items. Next goal: protect accuracy while reducing hesitation on familiar concepts.'; }
+    else if(accuracy >= .70) { accClass='feedbackBalanced'; accTitle='Accuracy pattern: developing'; accMsg='You understand a meaningful portion, but you are still vulnerable to distractors. Review missed concepts and explain why each wrong option is wrong.'; }
+    else { accClass='feedbackUrgent'; accTitle='Accuracy pattern: needs targeted repair'; accMsg='Do not just take more questions. Go back to the flashcards for your missed concepts, then retry similar items until the rationale feels obvious.'; }
+  }
+  let decisionClass='feedbackBalanced', decisionTitle='Decision pattern: gathering data', decisionMsg='Answer-decision time will become more useful after several attempts.';
+  if(avgAnswer) {
+    if(avgAnswer <= 10 && accuracy < .75) { decisionClass='feedbackUrgent'; decisionTitle='Decision pattern: rushing'; decisionMsg='You are answering quickly but not accurately enough. That usually means recognition is replacing reasoning. Read the stem before trusting the answer that sounds familiar.'; }
+    else if(avgAnswer <= 18) { decisionClass='feedbackStrong'; decisionTitle='Decision pattern: decisive'; decisionMsg='Your answer decisions are quick. Keep using evidence from the stem so speed does not turn into guessing.'; }
+    else if(avgAnswer <= 30) { decisionClass='feedbackBalanced'; decisionTitle='Decision pattern: thoughtful'; decisionMsg='You are thinking through options. Now practice eliminating distractors faster by naming the exact reason each option fails.'; }
+    else { decisionClass='feedbackWatch'; decisionTitle='Decision pattern: hesitation'; decisionMsg='You may know the concept but get trapped between similar answer choices. Compare the terms on the flashcard and practice saying the difference out loud.'; }
+  }
+  const weakConcepts = DATA.concepts.map(c=>{
+    const qs = DATA.questions.filter(q=>q.concept===c.id).map(q=>stats[q.id]).filter(Boolean);
+    const attempts = qs.reduce((a,s)=>a+s.attempts,0);
+    const correct = qs.reduce((a,s)=>a+s.correct,0);
+    return {c, attempts, pct: attempts ? correct/attempts : null};
+  }).filter(x=>x.attempts>0 && x.pct < .8).sort((a,b)=>a.pct-b.pct).slice(0,3);
+  const weakText = weakConcepts.length ? weakConcepts.map(x=>x.c.title).join(', ') : 'No major weak concept has emerged yet. Keep practicing across categories.';
+  return {accuracy,avgRead,avgAnswer,avgRationale,boxes:[
+    {cls:readClass,title:readTitle,msg:readMsg},
+    {cls:accClass,title:accTitle,msg:accMsg},
+    {cls:decisionClass,title:decisionTitle,msg:decisionMsg},
+    {cls:'feedbackBalanced',title:'Next study target',msg:weakText}
+  ]};
+}
+function renderFeedbackHTML(stats) {
+  const f = getPerformanceFeedback(stats);
+  const timingLine = `Avg practice stem reading: ${f.avgRead?f.avgRead.toFixed(1)+'s':'not enough data'} | Avg answer decision: ${f.avgAnswer?f.avgAnswer.toFixed(1)+'s':'not enough data'} | Avg rationale review: ${f.avgRationale?f.avgRationale.toFixed(1)+'s':'not enough data'}`;
+  return `<div class="feedbackGrid">${f.boxes.map(b=>`<div class="feedbackBox ${b.cls}"><h3>${b.title}</h3><p>${b.msg}</p></div>`).join('')}</div>
+    <p class="small"><b>Timing snapshot:</b> ${timingLine}</p>
+    <p class="small"><b>How to use this:</b> The reading timer comes from practice mode only. Challenge and simulation show all answers immediately so students can transfer the skill into a test-like environment.</p>`;
+}
+
+function renderReport() {
+  const stats=getStats();
+  const reflection=localStorage.getItem('cbcsReflection') || '';
+  const attempted=Object.keys(stats).length;
+  const totalAttempts=Object.values(stats).reduce((a,s)=>a+s.attempts,0);
+  const totalCorrect=Object.values(stats).reduce((a,s)=>a+s.correct,0);
+  const conceptSummary = DATA.concepts.map(c=>{
+    const qs = DATA.questions.filter(q=>q.concept===c.id).map(q=>stats[q.id]).filter(Boolean);
+    const attempts = qs.reduce((a,s)=>a+s.attempts,0);
+    const correct = qs.reduce((a,s)=>a+s.correct,0);
+    const avgAnswer = average(qs.flatMap(s=>s.history.map(h=>h.answerSec)).filter(Boolean));
+    const pct = attempts ? Math.round(correct/attempts*100) : null;
+    return {c, attempts, correct, pct, avgAnswer};
+  });
+  const needsPractice = conceptSummary
+    .filter(x=>x.attempts===0 || x.pct<80 || x.avgAnswer>25)
+    .sort((a,b)=> (a.pct===null?999:a.pct) - (b.pct===null?999:b.pct))
+    .slice(0,6);
+  const focusHTML = needsPractice.length ? needsPractice.map(x=>{
+    const reason = x.attempts===0 ? 'Not practiced yet.' : x.pct<80 ? `Accuracy is ${x.pct}%, so this concept needs repair.` : `Average answer time is ${x.avgAnswer.toFixed(1)} seconds, so the concept needs faster recognition.`;
+    return `<div class="reportFocusItem"><b>${x.c.title}</b><br><span class="small">${reason} Study: ${x.c.front}</span></div>`;
+  }).join('') : '<div class="reportFocusItem"><b>No urgent weak concept detected.</b><br><span class="small">Keep rotating practice across all categories to protect retention.</span></div>';
+  document.getElementById('reportArea').innerHTML = `<div class="reportCard"><h2>CBCS Revenue Management Student Report</h2>
+    <p><b>Date:</b> ${new Date().toLocaleString()}</p>
+    <p><b>Questions attempted:</b> ${attempted} / ${DATA.questions.length} | <b>Total attempts:</b> ${totalAttempts} | <b>Overall accuracy:</b> ${totalAttempts?Math.round(totalCorrect/totalAttempts*100):0}%</p>
+    <h2>Your feedback</h2>
+    ${renderFeedbackHTML(stats)}
+    <h2>Concepts to practice next</h2>
+    <div class="reportFocusList">${focusHTML}</div>
+    <h2>Reflection</h2>
+    <p>${reflection || 'No reflection saved yet.'}</p>
+    <p class="small"><b>Report design:</b> This report summarizes performance patterns and target concepts. It does not print every answer, because rationales are already available inside practice, adaptive challenge, and simulation review.</p>
+  </div>`;
+}
+function resetAll() {
+  if(confirm('Clear all local practice data and reflection?')) {
+    localStorage.removeItem('cbcsStats'); localStorage.removeItem('cbcsReflection');
+    renderReport(); renderChallengeStats(); startPractice();
+  }
+}
+
+initFilters();
+renderFlashcards();
+startPractice();
+renderChallengeStats();
+renderReport();
+</script>
+</body>
+</html>
